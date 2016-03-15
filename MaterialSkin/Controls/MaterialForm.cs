@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -11,6 +12,8 @@ namespace MaterialSkin.Controls
 {
     public class MaterialForm : Form, IMaterialControl
     {
+
+        
         [Browsable(false)]
         public int Depth { get; set; }
         [Browsable(false)]
@@ -133,9 +136,11 @@ namespace MaterialSkin.Controls
 
         private enum ButtonState
         {
+            MenuOver,
             XOver,
             MaxOver,
             MinOver,
+            MenuDown,
             XDown,
             MaxDown,
             MinDown,
@@ -144,17 +149,36 @@ namespace MaterialSkin.Controls
 
         private readonly Cursor[] resizeCursors = { Cursors.SizeNESW, Cursors.SizeWE, Cursors.SizeNWSE, Cursors.SizeWE, Cursors.SizeNS };
 
+        private Rectangle menuButtonBounds;
         private Rectangle minButtonBounds;
         private Rectangle maxButtonBounds;
         private Rectangle xButtonBounds;
         private Rectangle actionBarBounds;
         private Rectangle statusBarBounds;
 
+        
+        
         private bool Maximized;
         private Size previousSize;
         private Point previousLocation;
         private bool headerMouseDown;
 
+        //[Category("ControlBox")]
+        [Description("标题栏中菜单的绑定项")]
+        [DisplayName("MenuOnTitleButton")]
+        //[DesignOnly(true)]
+        public MaterialContextMenuStrip MenuOnButton{ get { return menuOnButton; }set { menuOnButton = value; }}
+        private MaterialContextMenuStrip menuOnButton;
+
+        //[Category("ControlBox")]
+        [Description("是否显示标题栏中菜单按钮")]
+        [DisplayName("IsShowMenuButton")]
+        //[DesignOnly(true)]
+        public bool ShowMenuButton { get { return showmenubutton; } set {if (this.showmenubutton != value){this.showmenubutton = value;}}}
+        private bool showmenubutton;
+
+
+        //public EventHandler MenuButtonClick+=new EventHandler(Rectangle,System.EventArgs e);
         public MaterialForm()
         {
             FormBorderStyle = FormBorderStyle.None;
@@ -165,6 +189,7 @@ namespace MaterialSkin.Controls
             // This enables the form to trigger the MouseMove event even when mouse is over another control
             Application.AddMessageFilter(new MouseMessageFilter());
             MouseMessageFilter.MouseMove += OnGlobalMouseMove;
+           
         }
 
         protected override void WndProc(ref Message m)
@@ -178,31 +203,33 @@ namespace MaterialSkin.Controls
             }
             else if (m.Msg == WM_MOUSEMOVE && Maximized && 
                 (statusBarBounds.Contains(PointToClient(Cursor.Position)) || actionBarBounds.Contains(PointToClient(Cursor.Position))) && 
-                !(minButtonBounds.Contains(PointToClient(Cursor.Position)) || maxButtonBounds.Contains(PointToClient(Cursor.Position)) || xButtonBounds.Contains(PointToClient(Cursor.Position))))
+                !(minButtonBounds.Contains(PointToClient(Cursor.Position)) || maxButtonBounds.Contains(PointToClient(Cursor.Position)) || xButtonBounds.Contains(PointToClient(Cursor.Position)) || menuButtonBounds.Contains(PointToClient(Cursor.Position))))
             {
-                if (headerMouseDown)
-                {
-                    Maximized = false;
-                    headerMouseDown = false;
+                //if (headerMouseDown)
+                //{
 
-                    Point mousePoint = PointToClient(Cursor.Position);
-                    if (mousePoint.X < Width / 2)
-                        Location = mousePoint.X < previousSize.Width / 2 ?
-                            new Point(Cursor.Position.X - mousePoint.X, Cursor.Position.Y - mousePoint.Y) :
-                            new Point(Cursor.Position.X - previousSize.Width / 2, Cursor.Position.Y - mousePoint.Y);
-                    else
-                        Location = Width - mousePoint.X < previousSize.Width / 2 ? 
-                            new Point(Cursor.Position.X - previousSize.Width + Width - mousePoint.X, Cursor.Position.Y - mousePoint.Y) : 
-                            new Point(Cursor.Position.X - previousSize.Width / 2, Cursor.Position.Y - mousePoint.Y);
+                //        Maximized = false;
+                //        headerMouseDown = false;
 
-                    Size = previousSize;
-                    ReleaseCapture();
-                    SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
-                }
+
+                //        Point mousePoint = PointToClient(Cursor.Position);
+                //        if (mousePoint.X < Width / 2)
+                //            Location = mousePoint.X < previousSize.Width / 2 ?
+                //                new Point(Cursor.Position.X - mousePoint.X, Cursor.Position.Y - mousePoint.Y) :
+                //                new Point(Cursor.Position.X - previousSize.Width / 2, Cursor.Position.Y - mousePoint.Y);
+                //        else
+                //            Location = Width - mousePoint.X < previousSize.Width / 2 ?
+                //                new Point(Cursor.Position.X - previousSize.Width + Width - mousePoint.X, Cursor.Position.Y - mousePoint.Y) :
+                //                new Point(Cursor.Position.X - previousSize.Width / 2, Cursor.Position.Y - mousePoint.Y);
+
+                //        Size = previousSize;
+                //        ReleaseCapture();
+                //    SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+                //}
             }
             else if (m.Msg == WM_LBUTTONDOWN &&
                 (statusBarBounds.Contains(PointToClient(Cursor.Position)) || actionBarBounds.Contains(PointToClient(Cursor.Position))) && 
-                !(minButtonBounds.Contains(PointToClient(Cursor.Position)) || maxButtonBounds.Contains(PointToClient(Cursor.Position)) || xButtonBounds.Contains(PointToClient(Cursor.Position))))
+                !(minButtonBounds.Contains(PointToClient(Cursor.Position)) || maxButtonBounds.Contains(PointToClient(Cursor.Position)) || xButtonBounds.Contains(PointToClient(Cursor.Position))||menuButtonBounds.Contains(Cursor.Position)))
             {
                 if (!Maximized)
                 {
@@ -211,7 +238,10 @@ namespace MaterialSkin.Controls
                 }
                 else
                 {
-                    headerMouseDown = true;
+
+                        headerMouseDown = true;
+
+ 
                 }
             }
             else if (m.Msg == WM_RBUTTONDOWN)
@@ -219,7 +249,7 @@ namespace MaterialSkin.Controls
                 Point cursorPos = PointToClient(Cursor.Position);
 
                 if (statusBarBounds.Contains(cursorPos) && !minButtonBounds.Contains(cursorPos) && 
-                    !maxButtonBounds.Contains(cursorPos) && !xButtonBounds.Contains(cursorPos))
+                    !maxButtonBounds.Contains(cursorPos) && !xButtonBounds.Contains(cursorPos) && !menuButtonBounds.Contains(cursorPos))
                 {
                     // Show default system menu when right clicking titlebar
                     int id = TrackPopupMenuEx(
@@ -268,9 +298,20 @@ namespace MaterialSkin.Controls
         {
             if (DesignMode) return;
             UpdateButtons(e);
+            if (e.Button == MouseButtons.Left)
+            {
 
-            if (e.Button == MouseButtons.Left && !Maximized)
-                ResizeForm(resizeDir);
+                if (menuButtonBounds.Contains(e.Location)&&menuOnButton!=null&&ShowMenuButton==true) {
+                    menuOnButton.Show(PointToScreen(new Point(menuButtonBounds.X,menuButtonBounds.Y+menuButtonBounds.Height)));
+                }
+
+
+                if (!Maximized)
+                {
+                    ResizeForm(resizeDir);
+                }
+
+            }
             base.OnMouseDown(e);
         }
 
@@ -348,6 +389,7 @@ namespace MaterialSkin.Controls
         {
             if (DesignMode) return;
             ButtonState oldState = buttonState;
+            //bool showMenu = MinimizeBox && ControlBox;
             bool showMin = MinimizeBox && ControlBox;
             bool showMax = MaximizeBox && ControlBox;
 
@@ -361,6 +403,8 @@ namespace MaterialSkin.Controls
                     buttonState = ButtonState.MaxDown;
                 else if (ControlBox && xButtonBounds.Contains(e.Location))
                     buttonState = ButtonState.XDown;
+                else if (showmenubutton && menuButtonBounds.Contains(e.Location))
+                    buttonState = ButtonState.MenuDown;
                 else
                     buttonState = ButtonState.None;
             }
@@ -391,9 +435,11 @@ namespace MaterialSkin.Controls
                 else if (ControlBox && xButtonBounds.Contains(e.Location))
                 {
                     buttonState = ButtonState.XOver;
-
                     if (oldState == ButtonState.XDown)
                         Close();
+                }
+                else if (showmenubutton && menuButtonBounds.Contains(e.Location)) {
+                    buttonState = ButtonState.MenuOver;
                 }
                 else buttonState = ButtonState.None;
             }
@@ -467,7 +513,7 @@ namespace MaterialSkin.Controls
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-
+            menuButtonBounds = new Rectangle((Width - SkinManager.FORM_PADDING / 2) - 4 * STATUS_BAR_BUTTON_WIDTH, 0, STATUS_BAR_BUTTON_WIDTH, STATUS_BAR_HEIGHT);
             minButtonBounds = new Rectangle((Width - SkinManager.FORM_PADDING / 2) - 3 * STATUS_BAR_BUTTON_WIDTH, 0, STATUS_BAR_BUTTON_WIDTH, STATUS_BAR_HEIGHT);
             maxButtonBounds = new Rectangle((Width - SkinManager.FORM_PADDING / 2) - 2 * STATUS_BAR_BUTTON_WIDTH, 0, STATUS_BAR_BUTTON_WIDTH, STATUS_BAR_HEIGHT);
             xButtonBounds = new Rectangle((Width - SkinManager.FORM_PADDING / 2) - STATUS_BAR_BUTTON_WIDTH, 0, STATUS_BAR_BUTTON_WIDTH, STATUS_BAR_HEIGHT);
@@ -517,8 +563,53 @@ namespace MaterialSkin.Controls
             if (buttonState == ButtonState.XDown && ControlBox)
                 g.FillRectangle(downBrush, xButtonBounds);
 
+            if (buttonState == ButtonState.MenuOver && ControlBox)//绘制菜单按钮状态
+                g.FillRectangle(hoverBrush, menuButtonBounds);
+
+            if (buttonState == ButtonState.MenuDown && ControlBox)//绘制菜单按钮状态
+                g.FillRectangle(downBrush, menuButtonBounds);
+
             using (var formButtonsPen = new Pen(SkinManager.ACTION_BAR_TEXT_SECONDARY, 2))
             {
+                // Menu button.
+                if (showmenubutton)
+                {
+                    int x =menuButtonBounds.X;
+                    int y = menuButtonBounds.Y;
+
+
+                    //Point point1 = new Point(x + (int)(menuButtonBounds.Width * 0.25), y + (int)(menuButtonBounds.Height * 0.48));
+                    //Point point2 = new Point(x + (int)(menuButtonBounds.Width * 0.75), y + (int)(menuButtonBounds.Height * 0.48));
+                    //Point point3 = new Point(x + (int)(menuButtonBounds.Width * 0.5), y + (int)(menuButtonBounds.Height * 0.66));
+                    //Point[] pntArr = { point1, point2, point3 };
+                    //GraphicsPath path = new GraphicsPath();
+                    //path.AddLines(pntArr);
+                    //g.SmoothingMode = SmoothingMode.AntiAlias;
+                    //g.FillPath(formButtonsPen.Brush, path);
+                    g.DrawLine(
+                        formButtonsPen,
+                        x + (int)(menuButtonBounds.Width * 0.25),
+                        y + (int)(menuButtonBounds.Height * 0.36),
+                        x + (int)(menuButtonBounds.Width * 0.77),
+                        y + (int)(menuButtonBounds.Height * 0.36)
+                   );
+                    g.DrawLine(
+                        formButtonsPen,
+                        x + (int)(menuButtonBounds.Width * 0.25),
+                        y + (int)(menuButtonBounds.Height * 0.48),
+                        x + (int)(menuButtonBounds.Width * 0.77),
+                        y + (int)(menuButtonBounds.Height * 0.48)
+                   );
+                    g.DrawLine(
+                        formButtonsPen,
+                        x + (int)(menuButtonBounds.Width * 0.25),
+                        y + (int)(menuButtonBounds.Height * 0.6),
+                        x + (int)(menuButtonBounds.Width * 0.77),
+                        y + (int)(menuButtonBounds.Height * 0.6)
+                   );
+                    //g.SmoothingMode = SmoothingMode.Default;
+                    
+                }
                 // Minimize button.
                 if (showMin)
                 {
